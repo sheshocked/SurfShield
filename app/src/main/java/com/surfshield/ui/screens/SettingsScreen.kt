@@ -1,14 +1,22 @@
 package com.surfshield.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
@@ -24,14 +32,17 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.surfshield.data.AmneziaParams
 import com.surfshield.data.AppSettings
+import com.surfshield.data.BackgroundStyle
 import com.surfshield.data.DnsPreset
 import com.surfshield.data.ObfuscationMode
 import com.surfshield.data.SplitTunnelMode
 import com.surfshield.data.ThemeMode
+import com.surfshield.data.ThemePalette
 import com.surfshield.ui.components.ActionRow
 import com.surfshield.ui.components.NavigationRow
 import com.surfshield.ui.components.RadioRow
@@ -41,6 +52,7 @@ import com.surfshield.ui.components.SliderRow
 import com.surfshield.ui.components.SwitchRow
 import com.surfshield.ui.components.TextFieldRow
 import com.surfshield.ui.theme.SurfPalette
+import com.surfshield.ui.theme.themeColors
 
 /** Default MTU offered when the user turns automatic off. */
 private const val MTU_FALLBACK = 1420
@@ -398,31 +410,169 @@ private fun TuningGroup(settings: AppSettings) {
 
 @Composable
 private fun AppearanceGroup(settings: AppSettings) {
-    SettingsGroup("Appearance") {
+    SettingsGroup(
+        title = "Appearance",
+        footnote = "Text size follows this slider rather than the system font scale, so " +
+            "the app stays readable without resizing everything else on the device.",
+    ) {
         SegmentedRow(
-            title = "Theme",
+            title = "Mode",
             options = ThemeMode.entries.toList(),
             selected = settings.themeMode,
             label = {
                 when (it) {
                     ThemeMode.SYSTEM -> "System"
+                    ThemeMode.LIGHT -> "Light"
                     ThemeMode.DARK -> "Dark"
                     ThemeMode.AMOLED -> "AMOLED"
                 }
             },
+            subtitle = when (settings.themeMode) {
+                ThemeMode.SYSTEM -> "Follows the device setting"
+                ThemeMode.LIGHT -> "Light surfaces, darkened accents for contrast"
+                ThemeMode.DARK -> "Dark navy surfaces"
+                ThemeMode.AMOLED -> "True black, so unlit pixels stay off"
+            },
         ) { settings.themeMode = it }
+
+        PalettePicker(settings)
+
+        SegmentedRow(
+            title = "Background",
+            options = BackgroundStyle.entries.toList(),
+            selected = settings.backgroundStyle,
+            label = { it.label },
+            subtitle = when (settings.backgroundStyle) {
+                BackgroundStyle.PLAIN -> "One flat colour. Cheapest to draw"
+                BackgroundStyle.GRADIENT -> "Static vertical gradient"
+                BackgroundStyle.AURORA -> "Accent light drifting slowly behind the dial"
+            },
+        ) { settings.backgroundStyle = it }
+
+        SliderRow(
+            title = "Text size",
+            value = settings.fontScalePercent,
+            range = 85..130,
+            steps = 8,
+            valueLabel = { "$it%" },
+        ) { settings.fontScalePercent = it }
 
         SwitchRow(
             title = "Animations",
-            subtitle = "Disable for a snappier feel on older devices",
+            subtitle = "Turn off for a snappier, completely static interface",
             checked = settings.animationsEnabled,
         ) { settings.animationsEnabled = it }
+
+        SliderRow(
+            title = "Motion speed",
+            value = settings.motionScalePercent,
+            range = 50..180,
+            steps = 12,
+            enabled = settings.animationsEnabled,
+            valueLabel = { "$it%" },
+            subtitle = if (settings.animationsEnabled) {
+                "Below 100 is faster, above is slower and more relaxed"
+            } else {
+                "Turn animations on to adjust"
+            },
+        ) { settings.motionScalePercent = it }
 
         SwitchRow(
             title = "Haptic feedback",
             subtitle = "Vibrate when connecting and disconnecting",
             checked = settings.hapticFeedback,
         ) { settings.hapticFeedback = it }
+
+        SwitchRow(
+            title = "Show endpoint on home",
+            subtitle = "Display the raw IP and port under the server name",
+            checked = settings.showEndpointOnHome,
+        ) { settings.showEndpointOnHome = it }
+
+        SwitchRow(
+            title = "Keep screen on while connected",
+            subtitle = "Useful when watching the throughput meter",
+            checked = settings.keepScreenOnWhileConnected,
+        ) { settings.keepScreenOnWhileConnected = it }
+    }
+}
+
+/**
+ * Swatch picker.
+ *
+ * Each swatch is painted with the palette's real colours resolved for the mode
+ * that is currently selected, so what you see is what applies - including the
+ * light variants when Light is active.
+ */
+@Composable
+private fun PalettePicker(settings: AppSettings) {
+    val selected = settings.themePalette
+    val systemDark = isSystemInDarkTheme()
+    val dark = when (settings.themeMode) {
+        ThemeMode.SYSTEM -> systemDark
+        ThemeMode.LIGHT -> false
+        ThemeMode.DARK, ThemeMode.AMOLED -> true
+    }
+    val amoled = settings.themeMode == ThemeMode.AMOLED
+
+    Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp)) {
+        Text(
+            "Colour scheme",
+            style = MaterialTheme.typography.titleMedium,
+            color = SurfPalette.OnBackground,
+        )
+        Text(
+            selected.blurb,
+            style = MaterialTheme.typography.bodySmall,
+            color = SurfPalette.Muted,
+        )
+
+        Spacer(Modifier.height(14.dp))
+
+        Row(
+            Modifier.horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            ThemePalette.entries.forEach { palette ->
+                val colors = themeColors(palette, dark, amoled)
+                val isSelected = palette == selected
+
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(16.dp))
+                        .clickable { settings.themePalette = palette }
+                        .padding(4.dp),
+                ) {
+                    Box(
+                        Modifier
+                            .size(52.dp)
+                            .clip(CircleShape)
+                            .background(
+                                Brush.linearGradient(
+                                    listOf(colors.accent, colors.accentAlt, colors.accentDeep)
+                                )
+                            )
+                            .border(
+                                width = if (isSelected) 3.dp else 1.dp,
+                                color = if (isSelected) {
+                                    SurfPalette.OnBackground
+                                } else {
+                                    SurfPalette.Outline
+                                },
+                                shape = CircleShape,
+                            )
+                    )
+                    Spacer(Modifier.height(7.dp))
+                    Text(
+                        palette.label,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = if (isSelected) SurfPalette.OnBackground else SurfPalette.Muted,
+                        maxLines = 1,
+                    )
+                }
+            }
+        }
     }
 }
 
