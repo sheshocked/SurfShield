@@ -1,0 +1,28 @@
+<resources>
+    <string name="app_name">SurfShield</string>
+    <string name="connect">اتصال</string>
+    <string name="disconnect"> قطع اتصال</string>
+    <string name="connecting">در حال اتصال...</string>
+    <string name="disconnected"> قطع شده</string>
+    <string name="connected">متصل</string>
+    <string name="select_location">انتخاب لوکیشن</string>
+    <string name="settings">تنظیمات</string>
+    <string name="protocol">پروتکل</string>
+    <string name="wireguard">WireGuard</string>
+    <string name="amneziawg">AmneziaWG</string>
+    <string name="shadowsocks">Shadowsocks</string>
+    <string name="dns_settings">تنظیمات DNS</string>
+    <string name="mtu_settings">تنظیمات MTU</string>
+    <string name="split_tunneling">تقسیم تونل</string>
+    <string name="import_config">وارد کردن کانفیگ</string>
+    <string name="export_config">خروجی کانفیگ</string>
+    <string name="auto_connect">اتصال خودکار</string>
+    <string name="kill_switch">Kill Switch</string>
+    <string name="version">نسخه 1.0.0</string>
+    <string name="scan_servers">اسکن سرورها</string>
+    <string name="fastest_server">سریع‌ترین سرور</string>
+    <string name="stats_upload">آپلود</string>
+    <string name="stats_download">دانلود</string>
+    <string name="stats_latency">پینگ</string>
+</resources>
+
