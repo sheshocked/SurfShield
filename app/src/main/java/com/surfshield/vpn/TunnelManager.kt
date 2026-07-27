@@ -27,17 +27,23 @@ import java.io.ByteArrayInputStream
 /**
  * Owns the tunnel lifecycle.
  *
- * The connect flow is deliberately a search rather than a single attempt,
- * because on a filtered network you cannot know in advance which endpoint IP is
- * still routable or how much obfuscation the DPI requires:
+ * The connect flow is a search rather than a single attempt, because on a
+ * filtered network you cannot know in advance which endpoint IP is still
+ * routable or how much obfuscation the DPI requires:
  *
- *   1. Rank candidate IPs by measured RTT (Smart Connect).
+ *   1. Rank candidate IPs by measured RTT.
  *   2. For each candidate, walk the obfuscation ladder, best-known first.
  *   3. Bring the tunnel up and wait for a real handshake.
  *   4. On success, remember the winning profile for this network.
  *
- * A handshake is the only honest success signal. setState() returning without
- * throwing just means the interface was created.
+ * A handshake is the only honest success signal: setState() returning without
+ * throwing means the interface was created, nothing more.
+ *
+ * Every failure carries a reason. An earlier version caught and discarded them,
+ * which produced a single useless "everything was tried" message no matter
+ * whether the native library was missing, consent had been denied, or the
+ * endpoint was simply blackholed. Those need very different fixes, so they are
+ * classified and reported.
  */
 class TunnelManager private constructor(private val context: Context) {
 
@@ -45,9 +51,19 @@ class TunnelManager private constructor(private val context: Context) {
         private const val TAG = "SurfShield/Tunnel"
         private const val TUNNEL_NAME = "surfshield"
 
-        /** How long to wait for the first handshake before trying the next profile. */
-        private const val HANDSHAKE_TIMEOUT_MS = 7_000L
-        private const val HANDSHAKE_POLL_MS = 350L
+        /**
+         * How long to wait for the first handshake before moving on.
+         *
+         * Deliberately generous: a junk-padded handshake to a European endpoint
+         * over a throttled Iranian link can take well past seven seconds, and a
+         * premature give-up looks exactly like a blocked endpoint.
+         */
+        private const val HANDSHAKE_TIMEOUT_MS = 12_000L
+        private const val HANDSHAKE_POLL_MS = 300L
+
+        /** Attempt matrix caps. Endpoints times profiles times timeout is wall-clock. */
+        private const val MAX_ENDPOINTS = 3
+        private const val MAX_PROFILES = 3
 
         @Volatile private var instance: TunnelManager? = null
 
@@ -55,6 +71,25 @@ class TunnelManager private constructor(private val context: Context) {
             instance ?: synchronized(this) {
                 instance ?: TunnelManager(context.applicationContext).also { instance = it }
             }
+    }
+
+    /** Why a single attempt failed. Distinct cases need distinct user advice. */
+    private sealed interface Failure {
+        val message: String
+
+        /** libwg-go.so absent: the tunnel module was not built into the APK. */
+        data class NativeMissing(override val message: String) : Failure
+
+        /** The backend refused the generated config. A bug on our side. */
+        data class BadConfig(override val message: String) : Failure
+
+        /** VpnService consent missing or revoked. */
+        data class NoPermission(override val message: String) : Failure
+
+        /** Interface came up, peer never answered. Endpoint blocked or wrong port. */
+        data class NoHandshake(override val message: String) : Failure
+
+        data class Other(override val message: String) : Failure
     }
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -102,7 +137,7 @@ class TunnelManager private constructor(private val context: Context) {
         if (stateFlow.value.isActive) disconnect() else connect(location, allLocations)
     }
 
-    /** Forget every learned profile, e.g. after the user changes ISP. */
+    /** Forget every learned profile, e.g. after changing ISP. */
     fun resetLearnedProfiles() = autoTuner.clear()
 
     // ------------------------------------------------------------- connect pipeline
@@ -116,24 +151,38 @@ class TunnelManager private constructor(private val context: Context) {
             detail = "Preparing",
         )
 
-        val candidates = buildCandidates(requested, allLocations)
-        if (candidates.isEmpty()) {
-            fail("No reachable endpoint for ${requested.displayName}")
+        if (fingerprint == "offline") {
+            fail("This device has no network connection.")
             return
         }
+
+        val candidates = buildCandidates(requested, allLocations)
+        if (candidates.isEmpty()) {
+            fail(
+                "No endpoint to try for ${requested.displayName}. The profile has no " +
+                    "usable IP address."
+            )
+            return
+        }
+
+        var attempts = 0
+        var lastFailure: Failure? = null
 
         for ((location, endpoint, rtt) in candidates) {
             val supportsAwg = location.serverSupportsAwg
             val plan = autoTuner.plan("$fingerprint|${location.id}", supportsAwg)
+                .take(MAX_PROFILES)
 
             for (profile in plan) {
+                attempts++
                 stateFlow.value = stateFlow.value.copy(
                     status = ConnectionStatus.TESTING,
                     location = location,
                     endpoint = endpoint,
                     profile = profile,
                     rttMs = rtt.takeIf { it != EndpointProber.UNREACHABLE },
-                    detail = "Trying ${profile.label} via ${endpoint.substringBeforeLast(':')}",
+                    detail = "Attempt $attempts: ${profile.label} via ${endpoint.substringBeforeLast(':')}",
+                    error = null,
                 )
 
                 val built = AwgConfigBuilder.plan(
@@ -145,24 +194,80 @@ class TunnelManager private constructor(private val context: Context) {
                 )
                 val text = AwgConfigBuilder.render(built, settings)
 
-                if (bringUp(text) && awaitHandshake()) {
-                    autoTuner.remember("$fingerprint|${location.id}", profile)
-                    settings.lastLocationId = location.id
-                    stateFlow.value = stateFlow.value.copy(
-                        status = ConnectionStatus.CONNECTED,
-                        connectedSinceMs = System.currentTimeMillis(),
-                        detail = null,
-                        error = null,
+                if (settings.verboseLogging) {
+                    // Redacted: the private key would otherwise land in logcat.
+                    Log.d(TAG, "Attempt $attempts config:\n" + redact(text))
+                }
+
+                val failure = bringUp(text)
+                if (failure == null) {
+                    if (awaitHandshake()) {
+                        autoTuner.remember("$fingerprint|${location.id}", profile)
+                        settings.lastLocationId = location.id
+                        stateFlow.value = stateFlow.value.copy(
+                            status = ConnectionStatus.CONNECTED,
+                            connectedSinceMs = System.currentTimeMillis(),
+                            detail = null,
+                            error = null,
+                        )
+                        startStatsPolling()
+                        return
+                    }
+                    lastFailure = Failure.NoHandshake(
+                        "$endpoint accepted no handshake within " +
+                            "${HANDSHAKE_TIMEOUT_MS / 1000}s using ${profile.label}"
                     )
-                    startStatsPolling()
-                    return
+                    Log.w(TAG, "No handshake: ${lastFailure.message}")
+                } else {
+                    lastFailure = failure
+                    Log.w(TAG, "Attempt $attempts failed: ${failure.message}")
+
+                    // A missing native library or denied consent will fail every
+                    // remaining attempt identically. Stop and say so.
+                    if (failure is Failure.NativeMissing || failure is Failure.NoPermission) {
+                        runCatching { backend.setState(tunnel, Tunnel.State.DOWN, null) }
+                        fail(advice(failure))
+                        return
+                    }
                 }
 
                 runCatching { backend.setState(tunnel, Tunnel.State.DOWN, null) }
             }
         }
 
-        fail("Could not establish a tunnel. Every endpoint and profile was tried.")
+        fail(advice(lastFailure ?: Failure.Other("Unknown failure")), attempts)
+    }
+
+    /** Turns a failure into something the user can act on. */
+    private fun advice(failure: Failure): String = when (failure) {
+        is Failure.NativeMissing ->
+            "The AmneziaWG native library is missing from this build. The :tunnel " +
+                "module was not compiled in - check the submodule and the NDK setup."
+
+        is Failure.NoPermission ->
+            "Android denied VPN permission. Grant the connection request, and check " +
+                "whether another VPN app currently holds the always-on VPN slot."
+
+        is Failure.BadConfig ->
+            "The generated configuration was rejected: ${failure.message}"
+
+        is Failure.NoHandshake ->
+            "No server answered. The interface came up but no handshake completed, " +
+                "which means the endpoints are unreachable from this network, the " +
+                "port is filtered, or the keys are no longer valid. Last: " +
+                failure.message
+
+        is Failure.Other -> failure.message
+    }
+
+    private fun fail(message: String, attempts: Int = 0) {
+        val suffix = if (attempts > 0) " (tried $attempts combinations)" else ""
+        Log.e(TAG, "Connect failed: $message")
+        stateFlow.value = stateFlow.value.copy(
+            status = ConnectionStatus.FAILED,
+            detail = null,
+            error = message + suffix,
+        )
     }
 
     /**
@@ -175,52 +280,78 @@ class TunnelManager private constructor(private val context: Context) {
         allLocations: List<SurfLocation>,
     ): List<Triple<SurfLocation, String, Int>> {
         val pool = if (settings.smartConnect && allLocations.isNotEmpty()) {
-            // Keep the requested location first, then nearby alternatives.
             listOf(requested) + allLocations.filter { it.id != requested.id }.take(4)
         } else {
             listOf(requested)
         }
 
         val endpoints = pool.flatMap { loc -> loc.candidateEndpoints().map { loc to it } }
+        if (endpoints.isEmpty()) return emptyList()
+
         val ranked = EndpointProber.rank(endpoints.map { it.second })
         val rttByEndpoint = ranked.associate { it.endpoint to it.rttMs }
 
-        return endpoints
+        val ordered = endpoints
             .map { (loc, ep) -> Triple(loc, ep, rttByEndpoint[ep] ?: EndpointProber.UNREACHABLE) }
             .sortedWith(
                 compareBy(
-                    // requested location always wins ties
                     { if (it.first.id == requested.id) 0 else 1 },
                     { it.third },
                 )
             )
-            .take(6)
+
+        // A probe failure is a hint, not a verdict: UDP probes are unreliable and
+        // an endpoint that looks unreachable often still handshakes. So keep the
+        // unreachable ones as a fallback rather than dropping them, but only if
+        // nothing better is available.
+        val reachable = ordered.filter { it.third != EndpointProber.UNREACHABLE }
+        return (if (reachable.isNotEmpty()) reachable + ordered.filter { it !in reachable } else ordered)
+            .take(MAX_ENDPOINTS)
     }
 
-    private suspend fun bringUp(configText: String): Boolean = withContext(Dispatchers.IO) {
-        runCatching {
-            val config = Config.parse(ByteArrayInputStream(configText.toByteArray()))
+    /** Returns null on success, or the classified reason it failed. */
+    private suspend fun bringUp(configText: String): Failure? = withContext(Dispatchers.IO) {
+        val config = try {
+            Config.parse(ByteArrayInputStream(configText.toByteArray()))
+        } catch (e: Throwable) {
+            return@withContext Failure.BadConfig(e.message ?: e.javaClass.simpleName)
+        }
+
+        try {
             backend.setState(tunnel, Tunnel.State.UP, config)
-            true
-        }.getOrElse {
-            Log.w(TAG, "setState UP failed", it)
-            false
+            null
+        } catch (e: UnsatisfiedLinkError) {
+            Failure.NativeMissing(e.message ?: "libwg-go.so not found")
+        } catch (e: Throwable) {
+            val text = (e.message ?: e.javaClass.simpleName)
+            when {
+                // wireguard-android throws a plain Exception for this case, so the
+                // message is the only thing to match on.
+                text.contains("permission", ignoreCase = true) ||
+                    text.contains("prepare", ignoreCase = true) ||
+                    text.contains("consent", ignoreCase = true) -> Failure.NoPermission(text)
+
+                text.contains("UnsatisfiedLink", ignoreCase = true) ||
+                    text.contains("libwg", ignoreCase = true) -> Failure.NativeMissing(text)
+
+                else -> Failure.Other(text)
+            }
         }
     }
 
     /**
-     * Polls the backend statistics for a completed handshake. A tunnel that
-     * never handshakes reports no peer traffic, which is precisely the silent
-     * failure the old implementation could not detect.
+     * Polls backend statistics for a completed handshake. A tunnel that never
+     * handshakes reports no received bytes, which is precisely the silent
+     * failure the original implementation could not detect.
+     *
+     * Only rx counts. Transmitted bytes prove nothing - we send handshake
+     * initiations into the void whether or not anything is listening.
      */
     private suspend fun awaitHandshake(): Boolean {
         val deadline = System.currentTimeMillis() + HANDSHAKE_TIMEOUT_MS
         while (System.currentTimeMillis() < deadline) {
             val stats = runCatching { backend.getStatistics(tunnel) }.getOrNull()
-            if (stats != null && (stats.totalRx() > 0 || stats.totalTx() > 0)) {
-                // Any received byte proves the peer answered.
-                if (stats.totalRx() > 0) return true
-            }
+            if (stats != null && stats.totalRx() > 0) return true
             delay(HANDSHAKE_POLL_MS)
         }
         return false
@@ -252,13 +383,15 @@ class TunnelManager private constructor(private val context: Context) {
         }
     }
 
-    private fun fail(message: String) {
-        stateFlow.value = stateFlow.value.copy(
-            status = ConnectionStatus.FAILED,
-            detail = null,
-            error = message,
-        )
-    }
+    /** Strips key material so a config can be logged safely. */
+    private fun redact(config: String): String =
+        config.lineSequence().joinToString("\n") { line ->
+            if (line.trimStart().startsWith("PrivateKey", ignoreCase = true)) {
+                "PrivateKey = <redacted>"
+            } else {
+                line
+            }
+        }
 
     // ------------------------------------------------------------- fingerprinting
 

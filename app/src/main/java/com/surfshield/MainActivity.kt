@@ -1,9 +1,9 @@
 package com.surfshield
 
-import android.content.Intent
 import android.net.VpnService
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
@@ -28,6 +28,13 @@ import com.surfshield.vpn.TunnelManager
 import kotlinx.coroutines.launch
 
 private enum class Screen { HOME, SERVERS, SETTINGS, SPLIT_TUNNEL }
+
+/** One level up from [this], or null when already at the root. */
+private fun Screen.parent(): Screen? = when (this) {
+    Screen.HOME -> null
+    Screen.SERVERS, Screen.SETTINGS -> Screen.HOME
+    Screen.SPLIT_TUNNEL -> Screen.SETTINGS
+}
 
 class MainActivity : ComponentActivity() {
 
@@ -84,7 +91,13 @@ class MainActivity : ComponentActivity() {
         var pings by remember { mutableStateOf<Map<String, Int>>(emptyMap()) }
         var selectedId by remember { mutableStateOf(settings.lastLocationId) }
 
-        // Load the bundled profiles once, then optionally measure them.
+        // Back moves up the hierarchy instead of leaving the app. Without this
+        // the system default applied and back from any screen closed SurfShield.
+        BackHandler(enabled = screen.parent() != null) {
+            screen = screen.parent() ?: Screen.HOME
+        }
+
+        // Load the profiles once, then optionally measure them.
         LaunchedEffect(Unit) {
             val loaded = LocationRepository.load(context)
             locations = loaded
