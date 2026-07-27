@@ -78,6 +78,8 @@ data class SurfLocation(
 ) {
     val endpoint: String get() = "$ip:$port"
 
+    val serverSupportsAwg: Boolean get() = !amnezia.isVanillaCompatible
+
     val displayName: String
         get() = if (city.isBlank()) country else "$country - $city"
 

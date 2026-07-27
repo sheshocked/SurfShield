@@ -90,7 +90,7 @@ object LocationRepository {
             publicKey = obj.firstString("public_key", "publicKey")
                 ?: throw IllegalArgumentException("Profile $id has no peer public key"),
             address = obj.firstString("address", "interface_address") ?: "10.14.0.2/16",
-            dns = obj.firstString("dns") ?: "",
+            dns = (obj.firstString("dns") ?: "").split(",").map { it.trim() }.filter { it.isNotBlank() },
             amnezia = parseAmnezia(obj),
             altIps = parseAltIps(obj),
         )

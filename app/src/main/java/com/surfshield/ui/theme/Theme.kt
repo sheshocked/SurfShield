@@ -66,7 +66,7 @@ fun SurfShieldTheme(
     content: @Composable () -> Unit,
 ) {
     val amoled = themeMode == ThemeMode.AMOLED ||
-        (themeMode == ThemeMode.SYSTEM && isSystemInDarkTheme() && false)
+        (themeMode == ThemeMode.SYSTEM && isSystemInDarkTheme())
 
     val scheme = darkColorScheme(
         primary = SurfPalette.Teal,

@@ -111,12 +111,15 @@ fun ConnectButton(
             .scale(scale)
             .selectable(
                 selected = status == ConnectionStatus.CONNECTED,
+                enabled = true,
+                role = null,
                 interactionSource = interaction,
                 indication = null,
-            ) {
-                if (hapticsEnabled) haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                onClick()
-            },
+                onClick = {
+                    if (hapticsEnabled) haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                    onClick()
+                }
+            ),
         contentAlignment = Alignment.Center,
     ) {
         Canvas(Modifier.size(size)) {

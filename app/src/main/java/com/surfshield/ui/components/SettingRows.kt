@@ -25,12 +25,14 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.surfshield.ui.theme.SurfPalette
 
+import androidx.compose.foundation.layout.ColumnScope
+
 /** Card wrapper that groups related settings under a heading. */
 @Composable
 fun SettingsGroup(
     title: String,
     modifier: Modifier = Modifier,
-    content: @Composable ColumnContent,
+    content: @Composable ColumnScope.() -> Unit,
 ) {
     Column(modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
         Text(
@@ -44,11 +46,10 @@ fun SettingsGroup(
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(18.dp))
                 .background(MaterialTheme.colorScheme.surfaceVariant),
-        ) { content() }
+            content = content
+        )
     }
 }
-
-typealias ColumnContent = @Composable () -> Unit
 
 @Composable
 fun SwitchRow(
