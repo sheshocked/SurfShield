@@ -46,6 +46,8 @@ jobs:
               https://github.com/amnezia-vpn/amneziawg-android \
               third_party/amneziawg-android
           fi
+          # Dynamically patch the tunnel build.gradle.kts to add compileSdk and ndkVersion
+          sed -i '/android {/a \    compileSdk = 34\n    ndkVersion = "27.0.12077973"' third_party/amneziawg-android/tunnel/build.gradle.kts
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
