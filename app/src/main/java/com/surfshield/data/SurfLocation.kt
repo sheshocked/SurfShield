@@ -29,15 +29,17 @@ data class AmneziaParams(
     val h2: Long = 2,
     val h3: Long = 3,
     val h4: Long = 4,
+    val i1: String = "",
+    val i2: String = "",
 ) {
     /** True when only knobs a vanilla WireGuard server tolerates are in use. */
     val isVanillaCompatible: Boolean
-        get() = s1 == 0 && s2 == 0 && h1 == 1L && h2 == 2L && h3 == 3L && h4 == 4L
+        get() = s1 == 0 && s2 == 0 && h1 == 1L && h2 == 2L && h3 == 3L && h4 == 4L && i1.isEmpty() && i2.isEmpty()
 
     /** Strip everything a vanilla server cannot understand, keep junk packets. */
     fun coercedToVanilla(): AmneziaParams =
         if (isVanillaCompatible) this
-        else copy(s1 = 0, s2 = 0, h1 = 1, h2 = 2, h3 = 3, h4 = 4)
+        else copy(s1 = 0, s2 = 0, h1 = 1, h2 = 2, h3 = 3, h4 = 4, i1 = "", i2 = "")
 
     companion object {
         /** No obfuscation at all - plain WireGuard. */

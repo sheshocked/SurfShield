@@ -143,6 +143,8 @@ object AwgConfigBuilder {
             if (h2 != 2L) sb.appendLine("H2 = $h2")
             if (h3 != 3L) sb.appendLine("H3 = $h3")
             if (h4 != 4L) sb.appendLine("H4 = $h4")
+            if (i1.isNotEmpty()) sb.appendLine("I1 = $i1")
+            if (i2.isNotEmpty()) sb.appendLine("I2 = $i2")
         }
 
         // Per-app split tunnelling is handled by the VpnService layer, driven by

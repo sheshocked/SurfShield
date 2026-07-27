@@ -106,6 +106,8 @@ object LocationRepository {
         h2 = obj.optLong("h2", 2L),
         h3 = obj.optLong("h3", 3L),
         h4 = obj.optLong("h4", 4L),
+        i1 = obj.optString("i1", ""),
+        i2 = obj.optString("i2", ""),
     )
 
     private fun parseAltIps(obj: JSONObject): List<String> {
