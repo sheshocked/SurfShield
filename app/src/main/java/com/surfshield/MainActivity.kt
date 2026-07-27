@@ -40,13 +40,11 @@ import java.net.HttpURLConnection
 import java.net.URL
 import kotlinx.coroutines.*
 
-class MainActivity : ComponentActivity() {
+const val PREFS_NAME = "surfshield_prefs"
+const val KEY_LOCATION_ID = "selected_location_id"
+const val KEY_PROTOCOL = "selected_protocol"
 
-    companion object {
-        const val PREFS_NAME = "surfshield_prefs"
-        const val KEY_LOCATION_ID = "selected_location_id"
-        const val KEY_PROTOCOL = "selected_protocol"
-    }
+class MainActivity : ComponentActivity() {
 
     private lateinit var prefs: SharedPreferences
     private lateinit var connectionReceiver: BroadcastReceiver
@@ -370,7 +368,7 @@ private fun loadLocationsFromJson(context: Context): List<SurfLocation> {
 class BootReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action == Intent.ACTION_BOOT_COMPLETED) {
-            val prefs = context.getSharedPreferences(MainActivity.PREFS_NAME, Context.MODE_PRIVATE)
+            val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             if (prefs.getBoolean("auto_connect", false)) {
                 val vpnIntent = Intent(context, SurfsharkVpnService::class.java)
                 context.startForegroundService(vpnIntent)
