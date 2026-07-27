@@ -20,7 +20,24 @@ enum class DnsPreset(val label: String, val servers: List<String>) {
 
 enum class ObfuscationMode { AUTO, PLAIN, LIGHT, MEDIUM, HEAVY, FULL_AWG, CUSTOM }
 
-enum class ThemeMode { SYSTEM, DARK, AMOLED }
+enum class ThemeMode { SYSTEM, LIGHT, DARK, AMOLED }
+
+/** Colour scheme. The actual colours live in ui/theme/Theme.kt. */
+enum class ThemePalette(val label: String, val blurb: String) {
+    MIDNIGHT("Midnight", "Teal to indigo on deep navy - the original"),
+    AURORA("Aurora", "Violet and magenta on near-black plum"),
+    EMBER("Ember", "Amber to rose on warm charcoal"),
+    NORD("Nord", "Muted arctic blues, low contrast and easy on the eyes"),
+    FOREST("Forest", "Spring green on very dark pine"),
+    MONO("Mono", "Neutral greys, no hue at all"),
+}
+
+/** How the home screen paints behind the connect button. */
+enum class BackgroundStyle(val label: String) {
+    PLAIN("Flat"),
+    GRADIENT("Gradient"),
+    AURORA("Living aurora"),
+}
 
 /**
  * Single source of truth for user preferences.
@@ -145,9 +162,36 @@ class AppSettings private constructor(private val prefs: SharedPreferences) {
             ?: ThemeMode.DARK
         set(value) = commit { putString("theme_mode", value.name) }
 
+    var themePalette: ThemePalette
+        get() = prefs.getString("theme_palette", null)
+            ?.let { runCatching { ThemePalette.valueOf(it) }.getOrNull() }
+            ?: ThemePalette.MIDNIGHT
+        set(value) = commit { putString("theme_palette", value.name) }
+
+    var backgroundStyle: BackgroundStyle
+        get() = prefs.getString("background_style", null)
+            ?.let { runCatching { BackgroundStyle.valueOf(it) }.getOrNull() }
+            ?: BackgroundStyle.AURORA
+        set(value) = commit { putString("background_style", value.name) }
+
     var animationsEnabled: Boolean by BoolPref("animations_enabled", true)
 
+    /** Percent. 100 is the designed speed; lower is faster. */
+    var motionScalePercent: Int by IntPref("motion_scale", 100)
+
+    /** Percent applied to the whole type scale. */
+    var fontScalePercent: Int by IntPref("font_scale", 100)
+
+    val motionScale: Float get() = motionScalePercent / 100f
+
+    val fontScale: Float get() = fontScalePercent / 100f
+
     var hapticFeedback: Boolean by BoolPref("haptics", true)
+
+    /** Show the raw endpoint under the server name on the home screen. */
+    var showEndpointOnHome: Boolean by BoolPref("show_endpoint_home", true)
+
+    var keepScreenOnWhileConnected: Boolean by BoolPref("keep_screen_on", false)
 
     /** "fa" or "en"; null follows the system locale. */
     var language: String?
