@@ -1,13 +1,29 @@
+# Build output
 *.iml
-.gradle
-/local.properties
-/.idea
-.DS_Store
-/build
-/captures
-.externalNativeBuild
-.cxx
-*.apk
-*.aab
-*.keystore
+.gradle/
+build/
+captures/
+local.properties
+.externalNativeBuild/
+.cxx/
+
+# IDE
+.idea/
+*.hprof
+
+# NEVER COMMIT THESE
+#
+# Server profiles live outside git. The plaintext is read at build time from
+# secrets/locations.json (or the LOCATIONS_JSON_B64 CI secret) and encrypted
+# into an asset. Neither the plaintext nor the encrypted blob belongs in a
+# commit.
+secrets/
+locations.json
+*.conf
+*.bin
+
+# Signing material
+keystore/
 *.jks
+*.keystore
+keystore.properties

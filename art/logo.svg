@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256" role="img" aria-label="SurfShield">
+  <title>SurfShield</title>
+  <defs>
+    <linearGradient id="ss-shield" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#2AF0CE"/>
+      <stop offset=".52" stop-color="#12B5D8"/>
+      <stop offset="1" stop-color="#3B6BF5"/>
+    </linearGradient>
+    <linearGradient id="ss-inner" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#0A1B2A" stop-opacity=".55"/>
+      <stop offset="1" stop-color="#06121D" stop-opacity=".85"/>
+    </linearGradient>
+    <linearGradient id="ss-wave" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#EAFFFB"/>
+      <stop offset="1" stop-color="#8FE9DA"/>
+    </linearGradient>
+    <filter id="ss-glow" x="-35%" y="-35%" width="170%" height="170%">
+      <feGaussianBlur stdDeviation="9" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- outer shield -->
+  <path filter="url(#ss-glow)" fill="url(#ss-shield)"
+        d="M128 14 L216 45 V127 C216 179 178 221 128 242 C78 221 40 179 40 127 V45 Z"/>
+
+  <!-- recessed face -->
+  <path fill="url(#ss-inner)"
+        d="M128 36 L196 60 V127 C196 168 166 202 128 219 C90 202 60 168 60 127 V60 Z"/>
+
+  <!-- three waves, clipped to the shield face -->
+  <g fill="none" stroke="url(#ss-wave)" stroke-linecap="round" stroke-width="13">
+    <path d="M79 118 c12-14 24 14 36 0 s24-14 36 0 s18 10 26 2" opacity=".95"/>
+    <path d="M79 148 c12-14 24 14 36 0 s24-14 36 0 s18 10 26 2" opacity=".62"/>
+    <path d="M85 178 c11-12 22 12 33 0 s22-12 33 0" opacity=".32"/>
+  </g>
+</svg>

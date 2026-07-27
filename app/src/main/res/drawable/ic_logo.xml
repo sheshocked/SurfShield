@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- SurfShield mark. Source of truth: art/logo.svg -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="48dp"
+    android:height="48dp"
+    android:viewportWidth="256"
+    android:viewportHeight="256">
+
+    <path android:pathData="M128,14 L216,45 V127 C216,179 178,221 128,242 C78,221 40,179 40,127 V45 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:startX="40" android:startY="14"
+                android:endX="216" android:endY="242"
+                android:type="linear">
+                <item android:offset="0" android:color="#FF2AF0CE"/>
+                <item android:offset="0.52" android:color="#FF12B5D8"/>
+                <item android:offset="1" android:color="#FF3B6BF5"/>
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <path android:pathData="M128,36 L196,60 V127 C196,168 166,202 128,219 C90,202 60,168 60,127 V60 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:startX="128" android:startY="36"
+                android:endX="128" android:endY="219"
+                android:type="linear">
+                <item android:offset="0" android:color="#8C0A1B2A"/>
+                <item android:offset="1" android:color="#D906121D"/>
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <path
+        android:pathData="M79,118 c12,-14 24,14 36,0 s24,-14 36,0 s18,10 26,2"
+        android:strokeColor="#F2EAFFFB"
+        android:strokeWidth="13"
+        android:strokeLineCap="round"/>
+    <path
+        android:pathData="M79,148 c12,-14 24,14 36,0 s24,-14 36,0 s18,10 26,2"
+        android:strokeColor="#9EBFF2E8"
+        android:strokeWidth="13"
+        android:strokeLineCap="round"/>
+    <path
+        android:pathData="M85,178 c11,-12 22,12 33,0 s22,-12 33,0"
+        android:strokeColor="#528FE9DA"
+        android:strokeWidth="13"
+        android:strokeLineCap="round"/>
+</vector>
