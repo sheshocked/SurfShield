@@ -1,11 +1,48 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+  Adaptive-icon foreground. The 108dp canvas has a 72dp safe zone, so the mark
+  is drawn inside the middle third to survive aggressive OEM masking.
+-->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <path
-        android:fillColor="#6C63FF"
-        android:pathData="M54,4L104,104H4Z"/>
-</vector>
 
+    <group android:translateX="27" android:translateY="27" android:scaleX="0.2109" android:scaleY="0.2109">
+
+        <path android:pathData="M128,14 L216,45 V127 C216,179 178,221 128,242 C78,221 40,179 40,127 V45 Z">
+            <aapt:attr name="android:fillColor">
+                <gradient
+                    android:startX="40" android:startY="14"
+                    android:endX="216" android:endY="242"
+                    android:type="linear">
+                    <item android:offset="0" android:color="#FF3BFFDC"/>
+                    <item android:offset="0.52" android:color="#FF19C8EC"/>
+                    <item android:offset="1" android:color="#FF4C7BFF"/>
+                </gradient>
+            </aapt:attr>
+        </path>
+
+        <path
+            android:pathData="M128,36 L196,60 V127 C196,168 166,202 128,219 C90,202 60,168 60,127 V60 Z"
+            android:fillColor="#CC061420"/>
+
+        <path
+            android:pathData="M79,118 c12,-14 24,14 36,0 s24,-14 36,0 s18,10 26,2"
+            android:strokeColor="#FFEAFFFB"
+            android:strokeWidth="14"
+            android:strokeLineCap="round"/>
+        <path
+            android:pathData="M79,150 c12,-14 24,14 36,0 s24,-14 36,0 s18,10 26,2"
+            android:strokeColor="#A6BFF2E8"
+            android:strokeWidth="14"
+            android:strokeLineCap="round"/>
+        <path
+            android:pathData="M86,180 c11,-12 22,12 33,0 s22,-12 33,0"
+            android:strokeColor="#5C8FE9DA"
+            android:strokeWidth="14"
+            android:strokeLineCap="round"/>
+    </group>
+</vector>
