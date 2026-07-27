@@ -45,6 +45,7 @@ fun SettingsScreen(
     settings: AppSettings,
     @Suppress("UNUSED_PARAMETER") revision: Long,
     onOpenSplitTunnel: () -> Unit,
+    onOpenTheme: () -> Unit,
     onResetLearnedProfiles: () -> Unit,
     onBack: () -> Unit,
 ) {
@@ -256,12 +257,16 @@ fun SettingsScreen(
 
         // ------------------------------------------------------------- appearance
         SettingsGroup("Appearance") {
-            SegmentedRow(
+            NavigationRow(
                 title = "Theme",
-                options = ThemeMode.entries.toList(),
-                selected = settings.themeMode,
-                label = { it.name.lowercase() },
-            ) { settings.themeMode = it }
+                value = when (settings.themeMode) {
+                    ThemeMode.SYSTEM -> "system"
+                    ThemeMode.DARK -> "dark"
+                    ThemeMode.AMOLED -> "amoled"
+                },
+                subtitle = "Custom theme colors and tweaks",
+                onClick = onOpenTheme
+            )
 
             SegmentedRow(
                 title = "Language",

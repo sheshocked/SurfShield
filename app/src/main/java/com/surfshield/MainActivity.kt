@@ -24,11 +24,12 @@ import com.surfshield.ui.screens.HomeScreen
 import com.surfshield.ui.screens.ServerListScreen
 import com.surfshield.ui.screens.SettingsScreen
 import com.surfshield.ui.screens.SplitTunnelScreen
+import com.surfshield.ui.screens.ThemeScreen
 import com.surfshield.ui.theme.SurfShieldTheme
 import com.surfshield.vpn.TunnelManager
 import kotlinx.coroutines.launch
 
-private enum class Screen { HOME, SERVERS, SETTINGS, SPLIT_TUNNEL }
+private enum class Screen { HOME, SERVERS, SETTINGS, SPLIT_TUNNEL, THEME }
 
 class MainActivity : ComponentActivity() {
 
@@ -84,7 +85,11 @@ class MainActivity : ComponentActivity() {
 
         if (screen != Screen.HOME) {
             BackHandler {
-                screen = if (screen == Screen.SPLIT_TUNNEL) Screen.SETTINGS else Screen.HOME
+                screen = when (screen) {
+                    Screen.SPLIT_TUNNEL -> Screen.SETTINGS
+                    Screen.THEME -> Screen.SETTINGS
+                    else -> Screen.HOME
+                }
             }
         }
 
@@ -107,10 +112,12 @@ class MainActivity : ComponentActivity() {
 
         val currentThemeMode = remember(revision) { settings.themeMode }
         val currentMotionEnabled = remember(revision) { settings.animationsEnabled }
+        val currentColorPalette = remember(revision) { settings.colorPalette }
 
         SurfShieldTheme(
             themeMode = currentThemeMode,
             motionEnabled = currentMotionEnabled,
+            palette = currentColorPalette,
         ) {
             when (screen) {
                 Screen.HOME -> HomeScreen(
@@ -165,8 +172,15 @@ class MainActivity : ComponentActivity() {
                     settings = settings,
                     revision = revision,
                     onOpenSplitTunnel = { screen = Screen.SPLIT_TUNNEL },
+                    onOpenTheme = { screen = Screen.THEME },
                     onResetLearnedProfiles = { tunnel.resetLearnedProfiles() },
                     onBack = { screen = Screen.HOME },
+                )
+                
+                Screen.THEME -> ThemeScreen(
+                    settings = settings,
+                    revision = revision,
+                    onBack = { screen = Screen.SETTINGS }
                 )
 
                 Screen.SPLIT_TUNNEL -> SplitTunnelScreen(

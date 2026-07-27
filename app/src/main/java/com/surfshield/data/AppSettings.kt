@@ -2,6 +2,7 @@ package com.surfshield.data
 
 import android.content.Context
 import android.content.SharedPreferences
+import com.surfshield.ui.theme.ColorPaletteName
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -144,6 +145,12 @@ class AppSettings private constructor(private val prefs: SharedPreferences) {
             ?.let { runCatching { ThemeMode.valueOf(it) }.getOrNull() }
             ?: ThemeMode.DARK
         set(value) = commit { putString("theme_mode", value.name) }
+
+    var colorPalette: ColorPaletteName
+        get() = prefs.getString("color_palette", null)
+            ?.let { runCatching { ColorPaletteName.valueOf(it) }.getOrNull() }
+            ?: ColorPaletteName.MIDNIGHT
+        set(value) = commit { putString("color_palette", value.name) }
 
     var animationsEnabled: Boolean by BoolPref("animations_enabled", true)
 
