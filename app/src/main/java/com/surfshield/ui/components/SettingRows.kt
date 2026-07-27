@@ -25,6 +25,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.surfshield.ui.theme.SurfPalette
 
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.ColumnScope
 
 /** Card wrapper that groups related settings under a heading. */
@@ -96,7 +98,7 @@ fun NavigationRow(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(Modifier.weight(1f)) {
-            Text(title, style = MaterialTheme.typography.titleMedium)
+            Text(title, style = MaterialTheme.typography.titleMedium, color = SurfPalette.OnBackground)
             if (subtitle != null) {
                 Text(subtitle, style = MaterialTheme.typography.bodySmall, color = SurfPalette.Muted)
             }
@@ -126,18 +128,23 @@ fun <T> SegmentedRow(
     onSelect: (T) -> Unit,
 ) {
     Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp)) {
-        Text(title, style = MaterialTheme.typography.titleMedium)
+        Text(title, style = MaterialTheme.typography.titleMedium, color = SurfPalette.OnBackground)
         if (subtitle != null) {
             Text(subtitle, style = MaterialTheme.typography.bodySmall, color = SurfPalette.Muted)
         }
         Spacer(Modifier.height(10.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
             options.forEach { option ->
                 val active = option == selected
                 Text(
                     text = label(option),
                     style = MaterialTheme.typography.labelLarge,
                     color = if (active) SurfPalette.Navy else SurfPalette.OnBackground,
+                    softWrap = false,
+                    maxLines = 1,
                     modifier = Modifier
                         .clip(RoundedCornerShape(50))
                         .background(
@@ -164,7 +171,7 @@ fun SliderRow(
 ) {
     Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(title, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+            Text(title, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f), color = SurfPalette.OnBackground)
             Text(valueLabel(value), style = MaterialTheme.typography.bodyMedium, color = SurfPalette.Teal)
         }
         if (subtitle != null) {
@@ -195,7 +202,7 @@ fun TextFieldRow(
 ) {
     AnimatedVisibility(visible) {
         Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp)) {
-            Text(title, style = MaterialTheme.typography.titleMedium)
+            Text(title, style = MaterialTheme.typography.titleMedium, color = SurfPalette.OnBackground)
             if (subtitle != null) {
                 Text(subtitle, style = MaterialTheme.typography.bodySmall, color = SurfPalette.Muted)
             }
