@@ -4,6 +4,7 @@ import android.content.Intent
 import android.net.VpnService
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
@@ -80,6 +81,13 @@ class MainActivity : ComponentActivity() {
         val context = LocalContext.current
 
         var screen by remember { mutableStateOf(Screen.HOME) }
+
+        if (screen != Screen.HOME) {
+            BackHandler {
+                screen = if (screen == Screen.SPLIT_TUNNEL) Screen.SETTINGS else Screen.HOME
+            }
+        }
+
         var locations by remember { mutableStateOf<List<SurfLocation>>(emptyList()) }
         var pings by remember { mutableStateOf<Map<String, Int>>(emptyMap()) }
         var selectedId by remember { mutableStateOf(settings.lastLocationId) }
@@ -97,9 +105,12 @@ class MainActivity : ComponentActivity() {
 
         val selected = locations.firstOrNull { it.id == selectedId } ?: locations.firstOrNull()
 
+        val currentThemeMode = remember(revision) { settings.themeMode }
+        val currentMotionEnabled = remember(revision) { settings.animationsEnabled }
+
         SurfShieldTheme(
-            themeMode = settings.themeMode,
-            motionEnabled = settings.animationsEnabled,
+            themeMode = currentThemeMode,
+            motionEnabled = currentMotionEnabled,
         ) {
             when (screen) {
                 Screen.HOME -> HomeScreen(

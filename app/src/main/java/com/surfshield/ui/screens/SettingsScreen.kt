@@ -235,14 +235,14 @@ fun SettingsScreen(
 
         // ----------------------------------------------------------------- tuning
         SettingsGroup("Tunnel tuning") {
+            val currentMtu = settings.mtuOverride
             SliderRow(
                 title = "MTU",
-                subtitle = "0 lets the active profile decide. Lower it if large pages stall " +
-                    "while small requests succeed - that is the classic MTU symptom.",
-                value = settings.mtuOverride,
-                range = 0..1_500,
-                valueLabel = { if (it == 0) "auto" else it.toString() },
-            ) { settings.mtuOverride = if (it in 1..1_279) 0 else it }
+                subtitle = "auto (leftmost) lets the active profile decide. Lower it if large pages stall.",
+                value = if (currentMtu == 0) 1279 else currentMtu,
+                range = 1279..1500,
+                valueLabel = { if (it == 1279) "auto" else it.toString() },
+            ) { settings.mtuOverride = if (it == 1279) 0 else it }
 
             SliderRow(
                 title = "Persistent keepalive",

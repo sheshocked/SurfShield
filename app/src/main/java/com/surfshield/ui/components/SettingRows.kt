@@ -175,6 +175,11 @@ fun SliderRow(
             onValueChange = { onChange(it.toInt()) },
             valueRange = range.first.toFloat()..range.last.toFloat(),
             steps = steps,
+            colors = androidx.compose.material3.SliderDefaults.colors(
+                thumbColor = SurfPalette.Teal,
+                activeTrackColor = SurfPalette.Teal,
+                inactiveTrackColor = SurfPalette.Outline,
+            )
         )
     }
 }

@@ -46,7 +46,7 @@ class TunnelManager private constructor(private val context: Context) {
         private const val TUNNEL_NAME = "surfshield"
 
         /** How long to wait for the first handshake before trying the next profile. */
-        private const val HANDSHAKE_TIMEOUT_MS = 7_000L
+        private const val HANDSHAKE_TIMEOUT_MS = 15_000L
         private const val HANDSHAKE_POLL_MS = 350L
 
         @Volatile private var instance: TunnelManager? = null
