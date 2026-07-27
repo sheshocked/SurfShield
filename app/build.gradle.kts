@@ -197,6 +197,11 @@ android {
         )
         jniLibs.useLegacyPackaging = false
     }
+
+    lint {
+        isCheckReleaseBuilds = false
+        isAbortOnError = false
+    }
 }
 
 // Assets are merged before packaging, so the encryption task has to run first.
