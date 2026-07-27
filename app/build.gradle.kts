@@ -1,7 +1,119 @@
+import java.security.SecureRandom
+import java.util.Base64
+import javax.crypto.Cipher
+import javax.crypto.SecretKeyFactory
+import javax.crypto.spec.GCMParameterSpec
+import javax.crypto.spec.PBEKeySpec
+import javax.crypto.spec.SecretKeySpec
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
 }
+
+// ---------------------------------------------------------------------------
+// Config vault
+//
+// Server profiles are never committed. At build time the plaintext is taken
+// from, in order of preference:
+//
+//   1. secrets/locations.json          (local development, gitignored)
+//   2. $LOCATIONS_JSON_B64             (base64, used by CI)
+//
+// and encrypted with AES-256-GCM into a generated asset, locations.bin.
+//
+// The passphrase ships inside the APK because the app must decrypt offline.
+// That means this protects the repository, not the binary. Treat any key that
+// has ever been in a published APK as public.
+// ---------------------------------------------------------------------------
+
+val vaultPadHex = "7c4f19a3d5e2b86140fa2d7b93c6e805"
+val vaultIterations = 120_000
+val vaultPassphrase: String =
+    (project.findProperty("surfshieldVaultPassphrase") as String?)
+        ?: System.getenv("SURFSHIELD_VAULT_PASSPHRASE")
+        ?: "surfshield-default-vault-passphrase"
+
+fun hexToBytes(hex: String): ByteArray =
+    ByteArray(hex.length / 2) { i ->
+        ((Character.digit(hex[i * 2], 16) shl 4) or Character.digit(hex[i * 2 + 1], 16)).toByte()
+    }
+
+// The passphrase is stored in BuildConfig xor-ed with a fixed pad so it is not
+// a grep-able string literal in the APK. This is obfuscation, nothing more.
+fun obfuscate(value: String): String {
+    val pad = hexToBytes(vaultPadHex)
+    val raw = value.toByteArray(Charsets.UTF_8)
+    val out = ByteArray(raw.size) { i -> (raw[i].toInt() xor pad[i % pad.size].toInt()).toByte() }
+    return Base64.getEncoder().encodeToString(out)
+}
+
+fun loadPlaintextProfiles(): String? {
+    val local = rootProject.file("secrets/locations.json")
+    if (local.exists()) return local.readText()
+    val encoded = System.getenv("LOCATIONS_JSON_B64")
+    if (!encoded.isNullOrBlank()) {
+        return String(Base64.getDecoder().decode(encoded.trim()), Charsets.UTF_8)
+    }
+    return null
+}
+
+val vaultAssetDir = layout.buildDirectory.dir("generated/vaultAssets")
+
+val encryptProfiles = tasks.register("encryptProfiles") {
+    group = "surfshield"
+    description = "Encrypts the server profiles into an asset. The source is never committed."
+    outputs.dir(vaultAssetDir)
+    outputs.upToDateWhen { false }
+
+    doLast {
+        val dir = vaultAssetDir.get().asFile
+        dir.mkdirs()
+        val target = File(dir, "locations.bin")
+
+        val plaintext = loadPlaintextProfiles()
+            ?: throw GradleException(
+                """
+                No server profiles available, so this build would produce an app with an
+                empty server list.
+
+                Provide them in one of these ways - neither is committed:
+
+                  local:  put the JSON at secrets/locations.json
+                  CI:     set the LOCATIONS_JSON_B64 repository secret to the output of
+                          base64 -w0 secrets/locations.json
+                """.trimIndent()
+            )
+
+        val random = SecureRandom()
+        val salt = ByteArray(16).also(random::nextBytes)
+        val iv = ByteArray(12).also(random::nextBytes)
+
+        val keyBytes = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA1")
+            .generateSecret(
+                PBEKeySpec(vaultPassphrase.toCharArray(), salt, vaultIterations, 256)
+            ).encoded
+
+        val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+        cipher.init(
+            Cipher.ENCRYPT_MODE,
+            SecretKeySpec(keyBytes, "AES"),
+            GCMParameterSpec(128, iv),
+        )
+        val ciphertext = cipher.doFinal(plaintext.toByteArray(Charsets.UTF_8))
+
+        target.outputStream().use { out ->
+            out.write("SSV1".toByteArray(Charsets.US_ASCII))
+            out.write(salt)
+            out.write(iv)
+            out.write(ciphertext)
+        }
+
+        logger.lifecycle("Encrypted server profiles into ${target.name} (${target.length()} bytes)")
+    }
+}
+
+val releaseKeystore = rootProject.file("keystore/release.jks")
 
 android {
     namespace = "com.surfshield"
@@ -13,6 +125,27 @@ android {
         targetSdk = 34
         versionCode = 2
         versionName = "2.0.0"
+
+        buildConfigField("String", "VAULT_P", "\"${obfuscate(vaultPassphrase)}\"")
+        buildConfigField("String", "VAULT_PAD", "\"$vaultPadHex\"")
+        buildConfigField("int", "VAULT_ITERATIONS", "$vaultIterations")
+    }
+
+    signingConfigs {
+        create("release") {
+            if (releaseKeystore.exists()) {
+                storeFile = releaseKeystore
+                storePassword = System.getenv("KEYSTORE_PASSWORD")
+                keyAlias = System.getenv("KEY_ALIAS")
+                keyPassword = System.getenv("KEY_PASSWORD")
+            }
+        }
+    }
+
+    sourceSets {
+        getByName("main") {
+            assets.srcDir(vaultAssetDir)
+        }
     }
 
     buildTypes {
@@ -23,10 +156,13 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
             )
-            // Replace with a real signing config before publishing. Shipping a
-            // release signed with the debug key is not installable as an update
-            // and is trivially repackaged.
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = if (releaseKeystore.exists()) {
+                signingConfigs.getByName("release")
+            } else {
+                // Falls back so CI can still produce an installable artifact.
+                // Not suitable for distribution.
+                signingConfigs.getByName("debug")
+            }
         }
         debug {
             applicationIdSuffix = ".debug"
@@ -45,6 +181,7 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 
     composeOptions {
@@ -58,11 +195,13 @@ android {
             "META-INF/LICENSE*",
             "META-INF/NOTICE*",
         )
-        // The native tunnel libraries must stay uncompressed so the loader can
-        // map them directly out of the APK.
         jniLibs.useLegacyPackaging = false
     }
 }
+
+// Assets are merged before packaging, so the encryption task has to run first.
+tasks.matching { it.name.startsWith("merge") && it.name.contains("Assets") }
+    .configureEach { dependsOn(encryptProfiles) }
 
 dependencies {
     // Vendored AmneziaWG backend. See settings.gradle.kts for the submodule
