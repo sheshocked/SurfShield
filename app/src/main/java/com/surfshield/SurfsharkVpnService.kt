@@ -1,143 +1,102 @@
 package com.surfshield
 
-import android.content.Context
-import android.content.SharedPreferences
+import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.PendingIntent
+import android.app.Service
+import android.content.Intent
 import android.net.VpnService
+import android.os.Build
+import android.os.IBinder
 import android.os.ParcelFileDescriptor
-import kotlinx.coroutines.*
-import java.io.File
-import java.net.*
+import androidx.core.app.NotificationCompat
 
 class SurfsharkVpnService : VpnService() {
-    private val serviceScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+
     private var vpnInterface: ParcelFileDescriptor? = null
-    private var isRunning = false
 
-    private inner class VpnConnection(
-        val configId: String,
-        val protocol: String,  // "wireguard", "amneziawg", "shadowsocks"
-        val serverIp: String,
-        val serverPort: Int,
-        val privateKey: String,
-        val publicKey: String,
-        val address: String,
-        val dns: String,
-        val jc: Int = 3, val jd: Int = 5,
-        val jmin: Int = 40, val jmax: Int = 70,
-        val s1: Int = 0, val s2: Int = 0,
-        val h1: Int = 1, val h2: Int = 2,
-        val h3: Int = 3, val h4: Int = 4
-    )
+    companion object {
+        private const val NOTIFICATION_ID = 1001
+        private const val CHANNEL_ID = "surfshield_vpn"
+    }
 
-    override fun onStartCommand(intent: android.content.Intent?, flags: Int, startId: Int): Int {
-        when (intent?.action) {
-            ACTION_CONNECT -> {
-                val config = intent.getSerializableExtra(EXTRA_CONFIG) as? VpnConnection ?: return START_NOT_STICKY
-                startVpn(config)
-            }
-            ACTION_DISCONNECT -> stopVpn()
-        }
+    override fun onCreate() {
+        super.onCreate()
+        createNotificationChannel()
+        startForeground(NOTIFICATION_ID, createNotification())
+    }
+
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        startVpn()
         return START_STICKY
     }
 
     override fun onDestroy() {
         stopVpn()
-        serviceScope.cancel()
         super.onDestroy()
     }
 
-    private fun startVpn(config: VpnConnection) {
-        if (isRunning) return
-        isRunning = true
+    override fun onBind(intent: Intent?): IBinder? = null
 
-        serviceScope.launch {
-            try {
-                // Build VPN interface
-                val builder = Builder()
-                builder.setSession("SurfShield")
-                builder.setMtu(1300)
+    private fun startVpn() {
+        val builder = Builder()
+        builder.setSession("SurfShield")
+        builder.addAddress("10.14.0.2", 32)
+        builder.addRoute("0.0.0.0", 0)
+        builder.addDnsServer("162.252.172.57")
+        builder.addDnsServer("149.154.159.92")
+        builder.setMtu(1500)
 
-                // Parse address
-                val addr = config.address.split('/')
-                if (addr.isNotEmpty()) {
-                    builder.addAddress(addr[0], if (addr.size > 1) addr[1].toInt() else 32)
-                }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            builder.setMetered(false)
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            builder.setBlocking(true)
+        }
 
-                // Add DNS
-                config.dns.split(",").forEach { dns ->
-                    try {
-                        builder.addDnsServer(InetAddress.getByName(dns.trim()))
-                    } catch (e: Exception) { }
-                }
-
-                // Add routes
-                builder.addRoute("0.0.0.0", 0)
-
-                // Set DNS bypass
-                builder.setBlocking(true)
-
-                // Establish interface
-                vpnInterface = builder.establish()
-                if (vpnInterface == null) {
-                    sendBroadcast(android.content.Intent(ACTION_STATUS).apply {
-                        putExtra("status", "error")
-                        putExtra("message", "Failed to create VPN interface")
-                    })
-                    return@launch
-                }
-
-                sendBroadcast(android.content.Intent(ACTION_STATUS).apply {
-                    putExtra("status", "connected")
-                    putExtra("config_id", config.configId)
-                    putExtra("protocol", config.protocol)
-                })
-
-                // Keep alive - read from interface
-                val inputStream = java.io.FileInputStream(vpnInterface!!.fileDescriptor)
-                val outputStream = java.io.FileOutputStream(vpnInterface!!.fileDescriptor)
-                val buffer = ByteArray(32767)
-
-                while (isRunning) {
-                    try {
-                        val read = inputStream.read(buffer)
-                        if (read > 0) {
-                            outputStream.write(buffer, 0, read)
-                            outputStream.flush()
-                        }
-                    } catch (e: Exception) {
-                        break
-                    }
-                }
-
-            } catch (e: Exception) {
-                sendBroadcast(android.content.Intent(ACTION_STATUS).apply {
-                    putExtra("status", "error")
-                    putExtra("message", e.message ?: "Unknown error")
-                })
-            } finally {
-                stopVpn()
-            }
+        try {
+            vpnInterface = builder.establish()
+            sendBroadcast(Intent("com.surfshield.CONNECTED"))
+        } catch (e: Exception) {
+            sendBroadcast(Intent("com.surfshield.DISCONNECTED"))
         }
     }
 
     private fun stopVpn() {
-        isRunning = false
-        try {
-            vpnInterface?.close()
-        } catch (_: Exception) { }
+        vpnInterface?.close()
         vpnInterface = null
-        stopForeground(STOP_FOREGROUND_REMOVE)
-        stopSelf()
-
-        sendBroadcast(android.content.Intent(ACTION_STATUS).apply {
-            putExtra("status", "disconnected")
-        })
+        sendBroadcast(Intent("com.surfshield.DISCONNECTED"))
     }
 
-    companion object {
-        const val ACTION_CONNECT = "com.surfshield.CONNECT"
-        const val ACTION_DISCONNECT = "com.surfshield.DISCONNECT"
-        const val ACTION_STATUS = "com.surfshield.STATUS"
-        const val EXTRA_CONFIG = "config"
+    private fun createNotificationChannel() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = NotificationChannel(
+                CHANNEL_ID,
+                "SurfShield VPN",
+                NotificationManager.IMPORTANCE_LOW
+            ).apply {
+                description = "SurfShield VPN connection status"
+            }
+            getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
+        }
+    }
+
+    private fun createNotification(): Notification {
+        val intent = Intent(this, MainActivity::class.java)
+        val pendingIntent = PendingIntent.getActivity(
+            this, 0, intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        return NotificationCompat.Builder(this, CHANNEL_ID)
+            .setContentTitle("SurfShield VPN")
+            .setContentText("Connected - Securing your connection")
+            .setSmallIcon(android.R.drawable.ic_lock_lock)
+            .setContentIntent(pendingIntent)
+            .setOngoing(true)
+            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .build()
     }
 }
+

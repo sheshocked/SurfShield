@@ -1,6 +1,5 @@
 package com.surfshield.ui.components
 
-import androidx.compose.animation.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -12,7 +11,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -37,7 +35,6 @@ fun LocationSheet(
             .background(SurfColors.Surface, RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp))
             .padding(top = 16.dp)
     ) {
-        // Drag handle
         Box(
             modifier = Modifier
                 .width(40.dp)
@@ -46,10 +43,7 @@ fun LocationSheet(
                 .background(SurfColors.Muted)
                 .align(Alignment.CenterHorizontally)
         )
-
         Spacer(Modifier.height(16.dp))
-
-        // Title
         Text(
             "🌍 Select Location",
             color = SurfColors.OnBackground,
@@ -58,44 +52,11 @@ fun LocationSheet(
             modifier = Modifier.padding(horizontal = 24.dp)
         )
         Text(
-            "${locations.size} servers available • ${selectedProtocol.displayName}",
+            "${locations.size} servers available",
             color = SurfColors.OnSurfaceVariant,
             fontSize = 14.sp,
             modifier = Modifier.padding(start = 24.dp, top = 4.dp, end = 24.dp, bottom = 16.dp)
         )
-
-        // Search bar
-        var searchQuery by remember { mutableStateOf("") }
-        TextField(
-            value = searchQuery,
-            onValueChange = { searchQuery = it },
-            placeholder = { Text("Search country or city...", color = SurfColors.Muted) },
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp)
-                .clip(RoundedCornerShape(16.dp))
-                .background(SurfColors.SurfaceVariant),
-            colors = TextFieldDefaults.colors(
-                focusedContainerColor = SurfColors.SurfaceVariant,
-                unfocusedContainerColor = SurfColors.SurfaceVariant,
-                focusedTextColor = SurfColors.OnBackground,
-                unfocusedTextColor = SurfColors.OnBackground,
-                cursorColor = SurfColors.Primary,
-                focusedIndicatorColor = Color.Transparent,
-                unfocusedIndicatorColor = Color.Transparent
-            ),
-            singleLine = true
-        )
-
-        Spacer(Modifier.height(8.dp))
-
-        // Location list
-        val filtered = if (searchQuery.isBlank()) locations
-        else locations.filter {
-            it.country.contains(searchQuery, ignoreCase = true) ||
-            it.city.contains(searchQuery, ignoreCase = true) ||
-            it.id.contains(searchQuery, ignoreCase = true)
-        }
 
         LazyColumn(
             modifier = Modifier
@@ -104,7 +65,7 @@ fun LocationSheet(
             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
-            items(filtered, key = { it.id }) { location ->
+            items(locations, key = { it.id }) { location ->
                 LocationItem(
                     location = location,
                     isSelected = location.id == selectedLocation?.id,
@@ -122,7 +83,6 @@ fun LocationItem(
     onClick: () -> Unit
 ) {
     val bgColor = if (isSelected) SurfColors.Primary.copy(alpha = 0.15f) else SurfColors.SurfaceVariant
-
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -132,17 +92,10 @@ fun LocationItem(
             .padding(horizontal = 16.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // Flag emoji
-        Text(
-            location.emojiFlag,
-            fontSize = 28.sp,
-            modifier = Modifier.padding(end = 14.dp)
-        )
-
-        // Country info
+        Text(location.emojiFlag, fontSize = 28.sp, modifier = Modifier.padding(end = 14.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                "${location.country}  •  ${location.city}",
+                "${location.country} • ${location.city}",
                 color = if (isSelected) SurfColors.Primary else SurfColors.OnBackground,
                 fontSize = 15.sp,
                 fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
@@ -150,14 +103,11 @@ fun LocationItem(
                 overflow = TextOverflow.Ellipsis
             )
             Text(
-                "${location.id.uppercase()}  ⚡ ${location.protocolLabel}",
+                location.id.uppercase(),
                 color = SurfColors.OnSurfaceVariant,
-                fontSize = 12.sp,
-                maxLines = 1
+                fontSize = 12.sp
             )
         }
-
-        // Selected indicator
         if (isSelected) {
             Box(
                 modifier = Modifier
